@@ -1,4 +1,4 @@
-import { createCarePlan, assignPlan, listPatients } from './data';
+import { createCarePlan, assignPlan, listPatients, listAssignments, getAdherenceLogs } from './data';
 import type { DraftPlan } from './plan';
 
 // Fake chainable client builder
@@ -223,6 +223,68 @@ describe('listPatients', () => {
       }),
     };
     const result = await listPatients(client, 'org-1');
+    expect(result).toEqual([]);
+  });
+});
+
+describe('listAssignments', () => {
+  it('returns assignments array on success', async () => {
+    const assignments = [
+      { id: 'a1', patient_id: 'p1', care_plan_id: 'cp1', status: 'active' },
+    ];
+    const client = {
+      from: (_table: string) => ({
+        select: () => ({
+          eq: () => ({
+            eq: async () => ({ data: assignments }),
+          }),
+        }),
+      }),
+    };
+    const result = await listAssignments(client, 'org-1');
+    expect(result).toEqual(assignments);
+  });
+
+  it('falls back to empty array when data is null', async () => {
+    const client = {
+      from: (_table: string) => ({
+        select: () => ({
+          eq: () => ({
+            eq: async () => ({ data: null }),
+          }),
+        }),
+      }),
+    };
+    const result = await listAssignments(client, 'org-1');
+    expect(result).toEqual([]);
+  });
+});
+
+describe('getAdherenceLogs', () => {
+  it('returns logs array on success', async () => {
+    const logs = [
+      { assignment_id: 'a1', plan_item_id: 'pi1', patient_id: 'p1', date: '2024-01-10', completed: true },
+    ];
+    const client = {
+      from: (_table: string) => ({
+        select: () => ({
+          eq: async () => ({ data: logs }),
+        }),
+      }),
+    };
+    const result = await getAdherenceLogs(client, 'org-1');
+    expect(result).toEqual(logs);
+  });
+
+  it('falls back to empty array when data is null', async () => {
+    const client = {
+      from: (_table: string) => ({
+        select: () => ({
+          eq: async () => ({ data: null }),
+        }),
+      }),
+    };
+    const result = await getAdherenceLogs(client, 'org-1');
     expect(result).toEqual([]);
   });
 });

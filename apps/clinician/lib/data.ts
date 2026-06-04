@@ -25,3 +25,15 @@ export async function listPatients(client: any, orgId: string): Promise<{ id: st
   if (error) return [];
   return data ?? [];
 }
+
+export async function listAssignments(client: any, orgId: string) {
+  const { data } = await client.from('assignments')
+    .select('id,patient_id,care_plan_id,status').eq('org_id', orgId).eq('status', 'active');
+  return data ?? [];
+}
+
+export async function getAdherenceLogs(client: any, orgId: string) {
+  const { data } = await client.from('adherence_logs')
+    .select('assignment_id,plan_item_id,patient_id,date,completed').eq('org_id', orgId);
+  return data ?? [];
+}
