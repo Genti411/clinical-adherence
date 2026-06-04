@@ -1,4 +1,5 @@
-import { getActiveAssignment, getPlanItems, getTodayLogs, markDone } from '../src/lib/care';
+import { getActiveAssignment, getPlanItems, getTodayLogs, markDone, syncVerified } from '../src/lib/care';
+import type { VerifiedResult } from '../src/lib/health/verify';
 
 // Fake chainable Supabase client builder.
 // Each method returns a thenable chain so callers can either chain further or await directly.
@@ -111,5 +112,53 @@ describe('markDone', () => {
     if (!result.ok) {
       expect(result.error).toBe('DB error');
     }
+  });
+});
+
+describe('syncVerified', () => {
+  const assignment = { id: 'assign-1', org_id: 'org-1' };
+  const results: VerifiedResult[] = [
+    { planItemId: 'item-1', date: '2026-06-04', completed: true, value: { steps: 9000 } },
+    { planItemId: 'item-2', date: '2026-06-04', completed: false, value: {} },
+  ];
+
+  it('upserts rows with source healthkit and correct onConflict', async () => {
+    const client = makeChainable({ data: null, error: null });
+    const result = await syncVerified(client, assignment, results, 'patient-1');
+    expect(result).toEqual({ ok: true });
+    expect(client.from).toHaveBeenCalledWith('adherence_logs');
+    expect(client.upsert).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          assignment_id: 'assign-1',
+          plan_item_id: 'item-1',
+          patient_id: 'patient-1',
+          org_id: 'org-1',
+          date: '2026-06-04',
+          completed: true,
+          source: 'healthkit',
+        }),
+        expect.objectContaining({
+          plan_item_id: 'item-2',
+          completed: false,
+          source: 'healthkit',
+        }),
+      ]),
+      { onConflict: 'assignment_id,plan_item_id,date' },
+    );
+  });
+
+  it('returns ok true when results is empty (no upsert needed)', async () => {
+    const client = makeChainable({ data: null, error: null });
+    const result = await syncVerified(client, assignment, [], 'patient-1');
+    expect(result).toEqual({ ok: true });
+    expect(client.upsert).not.toHaveBeenCalled();
+  });
+
+  it('returns error when upsert fails', async () => {
+    const client = makeChainable({ data: null, error: { message: 'upsert failed' } });
+    const result = await syncVerified(client, assignment, results, 'patient-1');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe('upsert failed');
   });
 });

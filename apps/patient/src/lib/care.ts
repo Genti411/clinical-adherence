@@ -17,6 +17,30 @@ export async function getTodayLogs(client: any, assignmentId: string, date: stri
   return data ?? [];
 }
 
+import type { VerifiedResult } from './health/verify';
+
+export async function syncVerified(
+  client: any,
+  assignment: { id: string; org_id: string },
+  results: VerifiedResult[],
+  patientId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (results.length === 0) return { ok: true };
+  const rows = results.map((r) => ({
+    assignment_id: assignment.id,
+    plan_item_id: r.planItemId,
+    patient_id: patientId,
+    org_id: assignment.org_id,
+    date: r.date,
+    completed: r.completed,
+    source: 'healthkit',
+  }));
+  const { error } = await client.from('adherence_logs').upsert(rows, {
+    onConflict: 'assignment_id,plan_item_id,date',
+  });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
 export async function markDone(
   client: any,
   p: { assignmentId: string; planItemId: string; patientId: string; orgId: string; date: string; completed: boolean },
