@@ -9,7 +9,7 @@ module.exports = {
     '@react-native-async-storage/async-storage':
       '@react-native-async-storage/async-storage/jest/async-storage-mock',
     '^react-native-reanimated$':
-      '<rootDir>/node_modules/react-native-reanimated/mock',
+      '<rootDir>/../../node_modules/react-native-reanimated/mock.js',
     '^@clinical/exercise-core$':
       '<rootDir>/../../packages/exercise-core/src/index.ts',
   },
