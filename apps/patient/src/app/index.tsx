@@ -206,9 +206,14 @@ function TodayScreen({ userId }: TodayProps) {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Today</Text>
-        <Link href="/checkin" style={styles.checkinLink} testID="checkin-link">
-          Weekly check-in
-        </Link>
+        <View style={styles.headerLinks}>
+          <Link href="/checkin" style={styles.checkinLink} testID="checkin-link">
+            Weekly check-in
+          </Link>
+          <Link href="/privacy" style={styles.checkinLink} testID="privacy-link">
+            Privacy
+          </Link>
+        </View>
       </View>
       <Text style={styles.subtitle} testID="adherence-pct">
         {pct}% done
@@ -274,6 +279,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8 },
+  headerLinks: { flexDirection: 'row', gap: 12 },
   checkinLink: { color: '#2F8F83', fontSize: 14, fontWeight: '600' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   notice: { fontSize: 16, color: '#555', textAlign: 'center' },
