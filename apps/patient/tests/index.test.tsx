@@ -19,6 +19,24 @@ jest.mock('../src/lib/care', () => ({
   getPlanItems: jest.fn(),
   getTodayLogs: jest.fn(),
   markDone: jest.fn(),
+  syncVerified: jest.fn(),
+}));
+
+// Mock health provider
+jest.mock('../src/lib/health', () => ({
+  getHealthProvider: jest.fn(() => ({
+    isAvailable: jest.fn().mockResolvedValue(true),
+    requestPermissions: jest.fn().mockResolvedValue(true),
+    getSteps: jest.fn().mockResolvedValue([{ date: expect.any(String), value: 9210 }]),
+    getWeightKg: jest.fn().mockResolvedValue([]),
+  })),
+}));
+
+// Mock health verify
+jest.mock('../src/lib/health/verify', () => ({
+  verifyFromHealth: jest.fn().mockResolvedValue([
+    { planItemId: 'item-2', date: '2026-06-04', completed: true, value: { steps: 9210 } },
+  ]),
 }));
 
 // Mock auth
@@ -29,7 +47,9 @@ jest.mock('../src/lib/auth', () => ({
   signOut: jest.fn(),
 }));
 
-import { getActiveAssignment, getPlanItems, getTodayLogs, markDone } from '../src/lib/care';
+import { getActiveAssignment, getPlanItems, getTodayLogs, markDone, syncVerified } from '../src/lib/care';
+import { getHealthProvider } from '../src/lib/health';
+import { verifyFromHealth } from '../src/lib/health/verify';
 
 const mockAssignment = { id: 'assign-1', care_plan_id: 'plan-1', org_id: 'org-1' };
 const mockItems = [
@@ -45,6 +65,16 @@ describe('Today screen', () => {
     (getPlanItems as jest.Mock).mockResolvedValue(mockItems);
     (getTodayLogs as jest.Mock).mockResolvedValue(mockLogs);
     (markDone as jest.Mock).mockResolvedValue({ ok: true });
+    (syncVerified as jest.Mock).mockResolvedValue({ ok: true });
+    (getHealthProvider as jest.Mock).mockReturnValue({
+      isAvailable: jest.fn().mockResolvedValue(true),
+      requestPermissions: jest.fn().mockResolvedValue(true),
+      getSteps: jest.fn().mockResolvedValue([]),
+      getWeightKg: jest.fn().mockResolvedValue([]),
+    });
+    (verifyFromHealth as jest.Mock).mockResolvedValue([
+      { planItemId: 'item-2', date: '2026-06-04', completed: true, value: { steps: 9210 } },
+    ]);
   });
 
   it('renders item titles', async () => {
@@ -95,6 +125,24 @@ describe('Today screen', () => {
       expect(markDone).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ planItemId: 'item-1', completed: false }),
+      );
+    });
+  });
+
+  it('pressing Sync calls syncVerified after verifyFromHealth', async () => {
+    const Index = require('../src/app/index').default;
+    const { getByTestId } = render(<Index />);
+    await waitFor(() => {
+      expect(getByTestId('sync-health-btn')).toBeTruthy();
+    });
+    fireEvent.press(getByTestId('sync-health-btn'));
+    await waitFor(() => {
+      expect(verifyFromHealth).toHaveBeenCalled();
+      expect(syncVerified).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ id: 'assign-1' }),
+        expect.any(Array),
+        'user-1',
       );
     });
   });

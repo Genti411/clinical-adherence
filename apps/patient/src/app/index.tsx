@@ -12,8 +12,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { getSession, sendCode, verifyCode } from '@/lib/auth';
-import { getActiveAssignment, getPlanItems, getTodayLogs, markDone } from '@/lib/care';
-import { buildChecklist, adherencePercent, ChecklistEntry } from '@/lib/today';
+import { getActiveAssignment, getPlanItems, getTodayLogs, markDone, syncVerified } from '@/lib/care';
+import { buildChecklist, adherencePercent, ChecklistEntry, PlanItem } from '@/lib/today';
+import { getHealthProvider } from '@/lib/health';
+import { verifyFromHealth } from '@/lib/health/verify';
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -98,9 +100,11 @@ interface TodayProps {
 
 function TodayScreen({ userId }: TodayProps) {
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [carePlanId, setCarePlanId] = useState<string | null>(null);
+  const [planItems, setPlanItems] = useState<PlanItem[]>([]);
   const [entries, setEntries] = useState<ChecklistEntry[]>([]);
   const today = isoDate(new Date());
 
@@ -128,6 +132,7 @@ function TodayScreen({ userId }: TodayProps) {
       ]);
 
       if (cancelled) return;
+      setPlanItems(items);
       setEntries(buildChecklist(items, logs));
       setLoading(false);
     }
@@ -155,6 +160,29 @@ function TodayScreen({ userId }: TodayProps) {
     });
   }, [assignmentId, orgId, userId, today]);
 
+  const syncHealth = useCallback(async () => {
+    if (!supabase || !assignmentId || !orgId) return;
+    setSyncing(true);
+    try {
+      const provider = getHealthProvider();
+      await provider.requestPermissions();
+      const verifiableItems = planItems.filter(
+        (it) => it.type === 'walking' || it.type === 'weigh_in',
+      );
+      const verified = await verifyFromHealth(verifiableItems, provider, today);
+      await syncVerified(supabase, { id: assignmentId, org_id: orgId }, verified, userId);
+      // Refresh the checklist
+      const [items, logs] = await Promise.all([
+        getPlanItems(supabase, carePlanId!),
+        getTodayLogs(supabase, assignmentId, today),
+      ]);
+      setPlanItems(items);
+      setEntries(buildChecklist(items, logs));
+    } finally {
+      setSyncing(false);
+    }
+  }, [assignmentId, orgId, userId, today, planItems, carePlanId]);
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -179,6 +207,16 @@ function TodayScreen({ userId }: TodayProps) {
       <Text style={styles.subtitle} testID="adherence-pct">
         {pct}% done
       </Text>
+      {isSupabaseConfigured && (
+        <Pressable
+          style={[styles.btn, styles.syncBtn]}
+          onPress={syncHealth}
+          disabled={syncing}
+          testID="sync-health-btn"
+        >
+          <Text style={styles.btnText}>{syncing ? 'Syncing...' : 'Sync health data'}</Text>
+        </Pressable>
+      )}
       <FlatList
         data={entries}
         keyExtractor={(e) => e.itemId}
@@ -237,6 +275,7 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: '#2F8F83', borderRadius: 8, padding: 14, width: '100%', alignItems: 'center', marginBottom: 8 },
   btnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   error: { color: '#B42318', marginTop: 8, textAlign: 'center' },
+  syncBtn: { marginHorizontal: 16, marginBottom: 8 },
   item: { padding: 16, borderBottomWidth: 1, borderColor: '#f0f0f0' },
   itemDone: { backgroundColor: '#f0faf9' },
   itemTitle: { fontSize: 16, fontWeight: '600' },
