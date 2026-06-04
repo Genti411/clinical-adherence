@@ -1,6 +1,17 @@
 {
   "name": "clinical-adherence",
   "private": true,
-  "workspaces": ["packages/*", "apps/*"],
-  "scripts": { "test:rls": "node supabase/test/rls-harness.mjs" }
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test:rls": "node supabase/test/rls-harness.mjs"
+  },
+  "overrides": {
+    "react-test-renderer": "19.2.4"
+  },
+  "dependencies": {
+    "react-test-renderer": "^19.2.4"
+  }
 }
