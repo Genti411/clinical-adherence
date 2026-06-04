@@ -1,0 +1,10 @@
+export type { RiskLevel, Difficulty, ExerciseType, Recommendation, StretchResponse } from './types';
+export { DISCLAIMER, DIFFICULTY_RANK } from './types';
+export { STRETCH_DATASET, buildResponse } from './dataset';
+export type { BuildOptions } from './dataset';
+export { matchInput } from './matcher';
+export type { MatchResult } from './matcher';
+export { classifyRisk, highRiskResponse } from './safety';
+export type { SafetyResult } from './safety';
+export { validateResponse, sanitize } from './validate';
+export { getStretchResponse } from './engine';
