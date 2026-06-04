@@ -41,6 +41,15 @@ export async function syncVerified(
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
+export async function saveOutcome(
+  client: any,
+  p: { patientId: string; orgId: string; instrument: string; score: number },
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await client.from('outcomes')
+    .insert({ patient_id: p.patientId, org_id: p.orgId, instrument: p.instrument, score: p.score });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
 export async function markDone(
   client: any,
   p: { assignmentId: string; planItemId: string; patientId: string; orgId: string; date: string; completed: boolean },

@@ -1,4 +1,4 @@
-import { getActiveAssignment, getPlanItems, getTodayLogs, markDone, syncVerified } from '../src/lib/care';
+import { getActiveAssignment, getPlanItems, getTodayLogs, markDone, syncVerified, saveOutcome } from '../src/lib/care';
 import type { VerifiedResult } from '../src/lib/health/verify';
 
 // Fake chainable Supabase client builder.
@@ -160,5 +160,51 @@ describe('syncVerified', () => {
     const result = await syncVerified(client, assignment, results, 'patient-1');
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe('upsert failed');
+  });
+});
+
+describe('saveOutcome', () => {
+  function makeInsertClient(error: null | { message: string }) {
+    let insertedRow: any = null;
+    const client = {
+      from: jest.fn((_table: string) => ({
+        insert: jest.fn((row: any) => {
+          insertedRow = row;
+          return Promise.resolve({ error });
+        }),
+      })),
+      getInserted: () => insertedRow,
+    };
+    return client;
+  }
+
+  it('inserts the outcome row and returns ok', async () => {
+    const client = makeInsertClient(null);
+    const result = await saveOutcome(client, {
+      patientId: 'patient-1',
+      orgId: 'org-1',
+      instrument: 'daily-function-v1',
+      score: 75,
+    });
+    expect(result).toEqual({ ok: true });
+    expect(client.from).toHaveBeenCalledWith('outcomes');
+    expect(client.getInserted()).toMatchObject({
+      patient_id: 'patient-1',
+      org_id: 'org-1',
+      instrument: 'daily-function-v1',
+      score: 75,
+    });
+  });
+
+  it('returns error when insert fails', async () => {
+    const client = makeInsertClient({ message: 'insert error' });
+    const result = await saveOutcome(client, {
+      patientId: 'patient-1',
+      orgId: 'org-1',
+      instrument: 'daily-function-v1',
+      score: 50,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe('insert error');
   });
 });
