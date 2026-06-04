@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Adherence",
+    "slug": "clinical-patient",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "clinicalpatient",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.clinical.patient",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.clinical.patient"
+    },
+    "web": {
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-splash-screen"
+    ],
+    "experiments": { "typedRoutes": true }
+  }
+}
