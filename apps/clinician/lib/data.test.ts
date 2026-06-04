@@ -1,4 +1,4 @@
-import { createCarePlan, assignPlan, listPatients, listAssignments, getAdherenceLogs } from './data';
+import { createCarePlan, assignPlan, listPatients, listAssignments, getAdherenceLogs, getOutcomes } from './data';
 import type { DraftPlan } from './plan';
 
 // Fake chainable client builder
@@ -285,6 +285,40 @@ describe('getAdherenceLogs', () => {
       }),
     };
     const result = await getAdherenceLogs(client, 'org-1');
+    expect(result).toEqual([]);
+  });
+});
+
+describe('getOutcomes', () => {
+  it('returns outcomes array ordered by recorded_at desc', async () => {
+    const outcomes = [
+      { patient_id: 'p1', instrument: 'daily-function-v1', score: 80, recorded_at: '2026-06-04T10:00:00Z' },
+      { patient_id: 'p2', instrument: 'daily-function-v1', score: 60, recorded_at: '2026-06-03T10:00:00Z' },
+    ];
+    const client = {
+      from: (_table: string) => ({
+        select: () => ({
+          eq: () => ({
+            order: async () => ({ data: outcomes }),
+          }),
+        }),
+      }),
+    };
+    const result = await getOutcomes(client, 'org-1');
+    expect(result).toEqual(outcomes);
+  });
+
+  it('falls back to empty array when data is null', async () => {
+    const client = {
+      from: (_table: string) => ({
+        select: () => ({
+          eq: () => ({
+            order: async () => ({ data: null }),
+          }),
+        }),
+      }),
+    };
+    const result = await getOutcomes(client, 'org-1');
     expect(result).toEqual([]);
   });
 });

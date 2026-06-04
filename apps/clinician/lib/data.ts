@@ -37,3 +37,9 @@ export async function getAdherenceLogs(client: any, orgId: string) {
     .select('assignment_id,plan_item_id,patient_id,date,completed').eq('org_id', orgId);
   return data ?? [];
 }
+
+export async function getOutcomes(client: any, orgId: string) {
+  const { data } = await client.from('outcomes')
+    .select('patient_id,instrument,score,recorded_at').eq('org_id', orgId).order('recorded_at', { ascending: false });
+  return data ?? [];
+}

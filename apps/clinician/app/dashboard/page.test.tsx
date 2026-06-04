@@ -28,6 +28,7 @@ jest.mock('next/link', () => {
 jest.mock('@/lib/data', () => ({
   listPatients: jest.fn(),
   getAdherenceLogs: jest.fn(),
+  getOutcomes: jest.fn(),
 }));
 
 // dashboard stats -- use real implementation
@@ -35,12 +36,13 @@ jest.mock('@/lib/data', () => ({
 
 import { cleanup } from '@testing-library/react';
 import { createClient } from '@/lib/supabase/server';
-import { listPatients, getAdherenceLogs } from '@/lib/data';
+import { listPatients, getAdherenceLogs, getOutcomes } from '@/lib/data';
 import DashboardPage from './page';
 
 const mockCreateClient = createClient as jest.Mock;
 const mockListPatients = listPatients as jest.Mock;
 const mockGetAdherenceLogs = getAdherenceLogs as jest.Mock;
+const mockGetOutcomes = getOutcomes as jest.Mock;
 
 function makeClient() {
   return {
@@ -56,6 +58,7 @@ describe('DashboardPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockCreateClient.mockResolvedValue(makeClient());
+    mockGetOutcomes.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -119,5 +122,32 @@ describe('DashboardPage', () => {
     } finally {
       configMock.isSupabaseConfigured = true;
     }
+  });
+
+  it('shows latest outcome score for a patient who has submitted a check-in', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    mockListPatients.mockResolvedValue([
+      { id: 'p1', full_name: 'Alice', email: null },
+      { id: 'p2', full_name: 'Bob', email: null },
+    ]);
+    mockGetAdherenceLogs.mockResolvedValue([
+      { assignment_id: 'a1', plan_item_id: 'pi1', patient_id: 'p1', date: today, completed: true },
+    ]);
+    mockGetOutcomes.mockResolvedValue([
+      { patient_id: 'p1', instrument: 'daily-function-v1', score: 85, recorded_at: '2026-06-04T10:00:00Z' },
+      { patient_id: 'p1', instrument: 'daily-function-v1', score: 70, recorded_at: '2026-05-28T10:00:00Z' },
+    ]);
+
+    const ui = await DashboardPage();
+    render(ui);
+
+    // p1 should show latest score 85
+    const scoreCell = screen.getByTestId('outcome-score-p1');
+    expect(scoreCell).toHaveTextContent('85/100');
+
+    // p2 has no outcomes - shows dash
+    const scoreCell2 = screen.getByTestId('outcome-score-p2');
+    expect(scoreCell2).toHaveTextContent('—');
   });
 });

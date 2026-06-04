@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
-import { listPatients, getAdherenceLogs } from '@/lib/data';
+import { listPatients, getAdherenceLogs, getOutcomes } from '@/lib/data';
 import { adherenceStats } from '@/lib/dashboard';
+import { latestByPatient } from '@/lib/outcomes';
 
 export default async function DashboardPage() {
   if (!isSupabaseConfigured) {
@@ -30,10 +31,13 @@ export default async function DashboardPage() {
   const { data: userData } = await client.auth.getUser();
   const orgId = (userData?.user?.user_metadata?.org_id as string) ?? '';
 
-  const [patients, logs] = await Promise.all([
+  const [patients, logs, outcomeRows] = await Promise.all([
     listPatients(client, orgId),
     getAdherenceLogs(client, orgId),
+    getOutcomes(client, orgId),
   ]);
+
+  const latestOutcomes = latestByPatient(outcomeRows);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -53,6 +57,7 @@ export default async function DashboardPage() {
     pct: number;
     lastActive: string | null;
     flagged: boolean;
+    outcomeScore: number | null;
   };
 
   const rows: PatientRow[] = patients.map((p) => {
@@ -62,12 +67,14 @@ export default async function DashboardPage() {
       completed: l.completed as boolean,
     }));
     const stats = adherenceStats(patientLogs, today);
+    const latest = latestOutcomes[p.id];
     return {
       id: p.id,
       name: p.full_name ?? p.email ?? p.id,
       pct: stats.pct,
       lastActive: stats.lastActive,
       flagged: stats.flagged,
+      outcomeScore: latest != null ? latest.score : null,
     };
   });
 
@@ -90,6 +97,7 @@ export default async function DashboardPage() {
               <th style={{ padding: '0.5rem 0.75rem' }}>Patient</th>
               <th style={{ padding: '0.5rem 0.75rem' }}>Adherence</th>
               <th style={{ padding: '0.5rem 0.75rem' }}>Last Active</th>
+              <th style={{ padding: '0.5rem 0.75rem' }}>Check-in Score</th>
               <th style={{ padding: '0.5rem 0.75rem' }}>Status</th>
               <th style={{ padding: '0.5rem 0.75rem' }}>Details</th>
             </tr>
@@ -100,6 +108,9 @@ export default async function DashboardPage() {
                 <td style={{ padding: '0.5rem 0.75rem' }}>{row.name}</td>
                 <td style={{ padding: '0.5rem 0.75rem' }}>{row.pct}%</td>
                 <td style={{ padding: '0.5rem 0.75rem' }}>{row.lastActive ?? '—'}</td>
+                <td style={{ padding: '0.5rem 0.75rem' }} data-testid={`outcome-score-${row.id}`}>
+                  {row.outcomeScore != null ? `${row.outcomeScore}/100` : '—'}
+                </td>
                 <td style={{ padding: '0.5rem 0.75rem' }}>
                   {row.flagged && (
                     <span
