@@ -3,3 +3,9 @@ dist
 .env
 .expo
 /apps/*/node_modules
+
+# build artifacts
+**/.next/
+**/*.tsbuildinfo
+**/dist/
+**/.expo/
