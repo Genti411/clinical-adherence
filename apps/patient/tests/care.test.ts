@@ -1,4 +1,4 @@
-import { getActiveAssignment, getPlanItems, getTodayLogs, markDone, syncVerified, saveOutcome } from '../src/lib/care';
+import { getActiveAssignment, getPlanItems, getTodayLogs, markDone, syncVerified, saveOutcome, exportMyData, requestDeletion } from '../src/lib/care';
 import type { VerifiedResult } from '../src/lib/health/verify';
 
 // Fake chainable Supabase client builder.
@@ -164,40 +164,48 @@ describe('syncVerified', () => {
 });
 
 describe('saveOutcome', () => {
-  function makeInsertClient(error: null | { message: string }) {
-    let insertedRow: any = null;
+  function makeTableClient(outcomeError: null | { message: string }) {
+    const inserts: Record<string, any[]> = { outcomes: [], audit_logs: [] };
     const client = {
-      from: jest.fn((_table: string) => ({
+      from: jest.fn((table: string) => ({
         insert: jest.fn((row: any) => {
-          insertedRow = row;
+          (inserts[table] = inserts[table] ?? []).push(row);
+          const error = table === 'outcomes' ? outcomeError : null;
           return Promise.resolve({ error });
         }),
       })),
-      getInserted: () => insertedRow,
+      getInserts: (table: string) => inserts[table] ?? [],
     };
     return client;
   }
 
-  it('inserts the outcome row and returns ok', async () => {
-    const client = makeInsertClient(null);
+  it('inserts the outcome row, logs audit, and returns ok', async () => {
+    const client = makeTableClient(null);
     const result = await saveOutcome(client, {
       patientId: 'patient-1',
       orgId: 'org-1',
       instrument: 'daily-function-v1',
       score: 75,
-    });
+    }, 'patient-1');
     expect(result).toEqual({ ok: true });
     expect(client.from).toHaveBeenCalledWith('outcomes');
-    expect(client.getInserted()).toMatchObject({
+    expect(client.from).toHaveBeenCalledWith('audit_logs');
+    expect(client.getInserts('outcomes')[0]).toMatchObject({
       patient_id: 'patient-1',
       org_id: 'org-1',
       instrument: 'daily-function-v1',
       score: 75,
     });
+    expect(client.getInserts('audit_logs')[0]).toMatchObject({
+      org_id: 'org-1',
+      actor_id: 'patient-1',
+      action: 'outcome.create',
+      entity: 'outcomes',
+    });
   });
 
-  it('returns error when insert fails', async () => {
-    const client = makeInsertClient({ message: 'insert error' });
+  it('returns error when insert fails (no audit on error)', async () => {
+    const client = makeTableClient({ message: 'insert error' });
     const result = await saveOutcome(client, {
       patientId: 'patient-1',
       orgId: 'org-1',
@@ -206,5 +214,83 @@ describe('saveOutcome', () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe('insert error');
+    // audit should NOT be called on failure
+    expect(client.getInserts('audit_logs')).toHaveLength(0);
+  });
+});
+
+describe('exportMyData', () => {
+  it('returns assignments, adherence, and outcomes for the patient', async () => {
+    const assignments = [{ id: 'a1', patient_id: 'p1' }];
+    const adherence = [{ id: 'l1', patient_id: 'p1' }];
+    const outcomes = [{ id: 'o1', patient_id: 'p1' }];
+
+    const tableData: Record<string, any[]> = {
+      assignments,
+      adherence_logs: adherence,
+      outcomes,
+    };
+
+    const client = {
+      from: (table: string) => ({
+        select: () => ({
+          eq: () => Promise.resolve({ data: tableData[table] ?? null }),
+        }),
+      }),
+    };
+
+    const result = await exportMyData(client, 'p1');
+    expect(result.assignments).toEqual(assignments);
+    expect(result.adherence).toEqual(adherence);
+    expect(result.outcomes).toEqual(outcomes);
+  });
+
+  it('returns empty arrays when data is null', async () => {
+    const client = {
+      from: (_table: string) => ({
+        select: () => ({
+          eq: () => Promise.resolve({ data: null }),
+        }),
+      }),
+    };
+
+    const result = await exportMyData(client, 'p1');
+    expect(result.assignments).toEqual([]);
+    expect(result.adherence).toEqual([]);
+    expect(result.outcomes).toEqual([]);
+  });
+});
+
+describe('requestDeletion', () => {
+  it('logs an audit event and returns ok (no hard delete)', async () => {
+    let auditRow: any = null;
+    const client = {
+      from: (table: string) => ({
+        insert: (row: any) => {
+          if (table === 'audit_logs') auditRow = row;
+          return Promise.resolve({ data: null, error: null });
+        },
+      }),
+    };
+
+    const result = await requestDeletion(client, { patientId: 'patient-1', orgId: 'org-1' });
+    expect(result).toEqual({ ok: true });
+    expect(auditRow).toMatchObject({
+      org_id: 'org-1',
+      actor_id: 'patient-1',
+      action: 'patient.deletion_requested',
+      entity: 'profiles',
+      entity_id: 'patient-1',
+    });
+  });
+
+  it('returns ok even if audit insert fails (best-effort)', async () => {
+    const client = {
+      from: (_table: string) => ({
+        insert: (_row: any) => Promise.reject(new Error('DB error')),
+      }),
+    };
+
+    await expect(requestDeletion(client, { patientId: 'p1', orgId: 'org-1' })).resolves.toEqual({ ok: true });
   });
 });

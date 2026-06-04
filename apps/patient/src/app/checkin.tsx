@@ -72,7 +72,7 @@ export default function CheckInScreen() {
           orgId,
           instrument: DAILY_FUNCTION.id,
           score: computed,
-        });
+        }, userId);
         if (!result.ok) {
           setSaveError(result.error ?? 'Failed to save.');
           setSaving(false);

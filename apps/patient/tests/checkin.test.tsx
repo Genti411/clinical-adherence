@@ -80,6 +80,7 @@ describe('CheckInScreen', () => {
           instrument: 'daily-function-v1',
           score: 100,
         }),
+        'user-1',
       );
     });
   });

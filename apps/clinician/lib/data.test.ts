@@ -135,6 +135,43 @@ describe('createCarePlan', () => {
     expect((insertedItems[1] as any).position).toBe(1);
     expect((insertedItems[0] as any).care_plan_id).toBe('plan-xyz');
   });
+
+  it('inserts audit log row after successful plan creation', async () => {
+    let auditRow: any = null;
+    const client = {
+      from: (table: string) => {
+        if (table === 'care_plans') {
+          return {
+            insert: () => ({
+              select: () => ({
+                single: async () => ({ data: { id: 'plan-audit-test' }, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === 'plan_items') {
+          return { insert: () => Promise.resolve({ data: null, error: null }) };
+        }
+        if (table === 'audit_logs') {
+          return {
+            insert: (row: any) => {
+              auditRow = row;
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        }
+        return makeFakeClient().from(table);
+      },
+    };
+    await createCarePlan(client, 'org-1', 'user-1', draft, 'user-1');
+    expect(auditRow).toMatchObject({
+      org_id: 'org-1',
+      actor_id: 'user-1',
+      action: 'care_plan.create',
+      entity: 'care_plans',
+      entity_id: 'plan-audit-test',
+    });
+  });
 });
 
 describe('assignPlan', () => {
@@ -176,6 +213,45 @@ describe('assignPlan', () => {
     });
     expect(result.error).toBe('Assign failed');
     expect(result.id).toBeUndefined();
+  });
+
+  it('inserts audit log row after successful assignment', async () => {
+    let auditRow: any = null;
+    const client = {
+      from: (table: string) => {
+        if (table === 'assignments') {
+          return {
+            insert: () => ({
+              select: () => ({
+                single: async () => ({ data: { id: 'assign-audit-test' }, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === 'audit_logs') {
+          return {
+            insert: (row: any) => {
+              auditRow = row;
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        }
+        return makeFakeClient().from(table);
+      },
+    };
+    await assignPlan(client, {
+      carePlanId: 'plan-1',
+      patientId: 'patient-1',
+      clinicianId: 'clinician-1',
+      orgId: 'org-1',
+    }, 'clinician-1');
+    expect(auditRow).toMatchObject({
+      org_id: 'org-1',
+      actor_id: 'clinician-1',
+      action: 'assignment.create',
+      entity: 'assignments',
+      entity_id: 'assign-audit-test',
+    });
   });
 });
 

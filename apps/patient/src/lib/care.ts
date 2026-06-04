@@ -1,3 +1,6 @@
+import { logAudit } from './audit';
+import type { VerifiedResult } from './health/verify';
+
 export async function getActiveAssignment(client: any, patientId: string) {
   const { data } = await client.from('assignments')
     .select('id,care_plan_id,org_id').eq('patient_id', patientId).eq('status', 'active')
@@ -16,8 +19,6 @@ export async function getTodayLogs(client: any, assignmentId: string, date: stri
     .select('plan_item_id,completed').eq('assignment_id', assignmentId).eq('date', date);
   return data ?? [];
 }
-
-import type { VerifiedResult } from './health/verify';
 
 export async function syncVerified(
   client: any,
@@ -44,10 +45,13 @@ export async function syncVerified(
 export async function saveOutcome(
   client: any,
   p: { patientId: string; orgId: string; instrument: string; score: number },
+  actorId?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const { error } = await client.from('outcomes')
     .insert({ patient_id: p.patientId, org_id: p.orgId, instrument: p.instrument, score: p.score });
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  await logAudit(client, { orgId: p.orgId, actorId: actorId ?? null, action: 'outcome.create', entity: 'outcomes', entityId: null });
+  return { ok: true };
 }
 
 export async function markDone(
@@ -59,4 +63,20 @@ export async function markDone(
     { onConflict: 'assignment_id,plan_item_id,date' },
   );
   return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function exportMyData(client: any, patientId: string) {
+  const [a, ad, o] = await Promise.all([
+    client.from('assignments').select('*').eq('patient_id', patientId),
+    client.from('adherence_logs').select('*').eq('patient_id', patientId),
+    client.from('outcomes').select('*').eq('patient_id', patientId),
+  ]);
+  return { assignments: a.data ?? [], adherence: ad.data ?? [], outcomes: o.data ?? [] };
+}
+
+export async function requestDeletion(client: any, p: { patientId: string; orgId: string }) {
+  // We do not hard-delete clinical records (providers may be legally required to
+  // retain them); we log the request for the clinic to action per their policy.
+  await logAudit(client, { orgId: p.orgId, actorId: p.patientId, action: 'patient.deletion_requested', entity: 'profiles', entityId: p.patientId });
+  return { ok: true };
 }

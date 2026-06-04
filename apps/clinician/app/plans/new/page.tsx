@@ -101,7 +101,7 @@ export default function NewCarePlanPage() {
     const userId = userData?.user?.id ?? 'unknown';
     const orgId = (userData?.user?.user_metadata?.org_id as string) ?? 'unknown';
 
-    const result = await createCarePlan(client, orgId, userId, draft);
+    const result = await createCarePlan(client, orgId, userId, draft, userId);
     if (result.error) {
       setSaveError(result.error);
       return;
@@ -137,7 +137,7 @@ export default function NewCarePlanPage() {
       patientId: selectedPatient,
       clinicianId: userId,
       orgId,
-    });
+    }, userId);
 
     if (result.error) {
       setAssignError(result.error);
