@@ -122,10 +122,9 @@ async function main() {
     psqlSql(readFileSync(shimPath, 'utf8'));
 
     log('Applying schema + RLS...');
-    // Disable function body validation so current_org()/current_app_role() can be created
-    // before public.profiles exists (they reference it but are validated at call time).
-    // This matches Supabase's production behaviour where the migration runs after tables exist.
-    psqlSql(`SET check_function_bodies = off;\n${readFileSync(schemaPath, 'utf8')}`);
+    // Apply the migration as-is (functions are defined after the tables they reference,
+    // so this validates on a fresh DB with the default check_function_bodies on).
+    psqlSql(readFileSync(schemaPath, 'utf8'));
 
     log('Applying seed...');
     psqlSql(readFileSync(seedPath, 'utf8'));

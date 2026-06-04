@@ -1,12 +1,5 @@
--- Helpers (Supabase already provides auth.uid(); these read the caller's profile).
-create or replace function public.current_org() returns uuid
-  language sql stable security definer set search_path = public as
-$$ select org_id from public.profiles where id = auth.uid() $$;
-
-create or replace function public.current_app_role() returns text
-  language sql stable security definer set search_path = public as
-$$ select role from public.profiles where id = auth.uid() $$;
-
+-- Tables first, then the helper functions that reference them (so the function
+-- bodies validate on a fresh database with check_function_bodies on), then RLS.
 create table public.organizations (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -80,6 +73,15 @@ create table public.audit_logs (
   org_id uuid not null, actor_id uuid, action text not null,
   entity text, entity_id uuid, at timestamptz not null default now(), meta jsonb
 );
+
+-- Helpers (Supabase already provides auth.uid(); these read the caller's profile).
+create or replace function public.current_org() returns uuid
+  language sql stable security definer set search_path = public as
+$$ select org_id from public.profiles where id = auth.uid() $$;
+
+create or replace function public.current_app_role() returns text
+  language sql stable security definer set search_path = public as
+$$ select role from public.profiles where id = auth.uid() $$;
 
 -- Enable RLS
 alter table public.organizations    enable row level security;
