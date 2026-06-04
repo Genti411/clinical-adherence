@@ -52,7 +52,7 @@ function psqlFile(hostPath) {
 }
 
 // Use dynamic import for fs (works in ESM)
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 
 function psqlSql(sql) {
   const res = spawnSync('docker', [
@@ -115,16 +115,20 @@ async function main() {
     log('Postgres ready.');
 
     const shimPath   = resolve(__dirname, '00_local_auth_shim.sql');
-    const schemaPath = resolve(__dirname, '../migrations/0001_foundation.sql');
+    const migrationsDir = resolve(__dirname, '../migrations');
     const seedPath   = resolve(__dirname, '../seed.sql');
 
     log('Applying auth shim...');
     psqlSql(readFileSync(shimPath, 'utf8'));
 
-    log('Applying schema + RLS...');
-    // Apply the migration as-is (functions are defined after the tables they reference,
-    // so this validates on a fresh DB with the default check_function_bodies on).
-    psqlSql(readFileSync(schemaPath, 'utf8'));
+    log('Applying migrations in order...');
+    const migrationFiles = readdirSync(migrationsDir)
+      .filter(f => f.endsWith('.sql'))
+      .sort();
+    for (const mf of migrationFiles) {
+      log(`  Applying ${mf}...`);
+      psqlSql(readFileSync(resolve(migrationsDir, mf), 'utf8'));
+    }
 
     log('Applying seed...');
     psqlSql(readFileSync(seedPath, 'utf8'));
