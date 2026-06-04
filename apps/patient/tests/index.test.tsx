@@ -1,6 +1,16 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 
+// Mock expo-router
+jest.mock('expo-router', () => {
+  const { Text } = require('react-native');
+  return {
+    Link: ({ children, testID }: { children: unknown; testID?: string; href?: string }) =>
+      require('react').createElement(Text, { testID }, children),
+    useRouter: jest.fn(() => ({ push: jest.fn(), back: jest.fn() })),
+  };
+});
+
 // Mock supabase module - not configured so we can control state
 jest.mock('../src/lib/supabase', () => ({
   isSupabaseConfigured: true,
