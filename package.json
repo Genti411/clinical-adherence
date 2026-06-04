@@ -1,0 +1,6 @@
+{
+  "name": "clinical-adherence",
+  "private": true,
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": { "test:rls": "node supabase/test/rls-harness.mjs" }
+}
